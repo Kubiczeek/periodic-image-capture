@@ -1,8 +1,10 @@
 import os
+import sys
 import cv2 as cv
 import datetime as dt
 
 automatic = False
+FIVE_MINUTES = 5*60*1000
 folder = "images/"
 image_count = 0
 
@@ -23,18 +25,33 @@ def save_image(img: cv.Mat) -> None:
 
 def set_count_by_images() -> None:
     global image_count
+    if not os.path.exists(folder):
+        os.makedirs(folder)
     image_count = len(os.listdir(folder))
+
+def is_it_worth_to_save() -> bool:
+    # Returns true if the time is between 7.30 and 17.00
+    now = dt.datetime.now()
+    start = now.replace(hour=7, minute=30, second=0, microsecond=0)
+    end = now.replace(hour=16, minute=52, second=30, microsecond=0)
+    print(f"Current time: {now}")
+    print(f"Start time: {start}")
+    print(f"End time: {end}")
+    if start <= now <= end:
+        return True
+    else:
+        return False
 
 def main_manual() -> None:
     result, image = cam.read()
     if result:
-        cv.imshow("Image", image)
+        cv.imshow("Latest Image", image)
     else:
         print("Failed to read image from camera")
     while True:
         r, i = cam.read()
         if r:
-            cv.imshow("ImageLive", i)
+            cv.imshow("Live Camera", i)
         key = cv.waitKey(1)
         if key == ord("q"):
             cam.release()
@@ -53,23 +70,28 @@ def main_automatic(time_delta : int = 5*60*1000) -> None:
     while True:
         result, image = cam.read()
         if result:
-            save_image(image)
+            if is_it_worth_to_save():
+                cv.imshow("Latest Image", image)
+                save_image(image)
+            else:
+                print("It's not worth to save image at this time")
         else:
             print("Failed to read image from camera")
-        cv.waitKey(time_delta)  # Wait for 5 minutes (300000 milliseconds)
+        key = cv.waitKey(time_delta)  # Wait for 5 minutes (300000 milliseconds)
+        if key == ord("q"):
+            cam.release()
+            cv.destroyAllWindows()
+            break
 
 if __name__ == "__main__":
+    automatic = not (sys.argv[1] == "manual") if len(sys.argv) > 1 else True
+    time_delta = FIVE_MINUTES  # Default time delta is 5 minutes
+    time_delta = int(sys.argv[2]) if len(sys.argv) > 2 else FIVE_MINUTES
+    folder = sys.argv[3] if len(sys.argv) > 3 else "images/"
+    print(f"Automatic: {automatic}")
+    print(f"Time delta: {time_delta}")
+    print(f"Folder: {folder}")
     set_count_by_images()
-    print("Automatic mode? (y/n)")
-    automatic = input().lower() == "y"
-    print("How many milliseconds between each image? (default 5 minutes)")
-    while True:
-        try:
-            time_delta = int(input())
-            break
-        except ValueError:
-            print("Invalid input, please enter an integer")
-
     if automatic:
         main_automatic(time_delta)
     else:
