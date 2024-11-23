@@ -2,6 +2,7 @@ import os
 import sys
 import cv2 as cv
 import datetime as dt
+import argparse
 
 automatic = False
 FIVE_MINUTES = 5*60*1000
@@ -33,7 +34,7 @@ def is_it_worth_to_save() -> bool:
     # Returns true if the time is between 7.30 and 17.00
     now = dt.datetime.now()
     start = now.replace(hour=7, minute=30, second=0, microsecond=0)
-    end = now.replace(hour=16, minute=52, second=30, microsecond=0)
+    end = now.replace(hour=17, minute=00, second=0, microsecond=0)
     print(f"Current time: {now}")
     print(f"Start time: {start}")
     print(f"End time: {end}")
@@ -70,11 +71,20 @@ def main_automatic(time_delta : int = 5*60*1000) -> None:
     while True:
         result, image = cam.read()
         if result:
+            # Add text to the image with the time gap when images are being saved
+            font = cv.FONT_HERSHEY_SIMPLEX
+            text_time_window = "Images are saved every 5 minutes between 7.30 and 17.00"
+            cv.putText(image, text_time_window, (10, 30), font, 0.5, (0, 0, 255), 1, cv.LINE_AA)
             if is_it_worth_to_save():
-                cv.imshow("Latest Image", image)
+                text = "Image successfully saved - " + dt.datetime.now().strftime('%H:%M:%S %d.%m.%Y')
+                cv.putText(image, text, (10, 60), font, 0.75, (0, 255, 0), 2, cv.LINE_AA)
                 save_image(image)
             else:
+                # Add text to the image, that it was not worth to save with the current time and date
+                text = "Image not saved - " + dt.datetime.now().strftime('%H:%M:%S %d.%m.%Y')
+                cv.putText(image, text, (10, 60), font, 0.75, (0, 0, 255), 2, cv.LINE_AA)
                 print("It's not worth to save image at this time")
+            cv.imshow("Latest Image", image)
         else:
             print("Failed to read image from camera")
         key = cv.waitKey(time_delta)  # Wait for 5 minutes (300000 milliseconds)
@@ -84,10 +94,20 @@ def main_automatic(time_delta : int = 5*60*1000) -> None:
             break
 
 if __name__ == "__main__":
-    automatic = not (sys.argv[1] == "manual") if len(sys.argv) > 1 else True
-    time_delta = FIVE_MINUTES  # Default time delta is 5 minutes
-    time_delta = int(sys.argv[2]) if len(sys.argv) > 2 else FIVE_MINUTES
-    folder = sys.argv[3] if len(sys.argv) > 3 else "images/"
+    parser = argparse.ArgumentParser(description="Periodic image capture")
+    parser.add_argument("-a", "--automatic", action="store_true", help="Enable automatic mode")
+    parser.add_argument("-i", "--interval", type=int, default=FIVE_MINUTES, help="Interval between captures in milliseconds")
+    parser.add_argument("-d", "--directory", type=str, default="images/", help="Directory to save images")
+
+    args = parser.parse_args()
+
+    automatic = args.automatic
+    time_delta = args.interval
+    folder = args.directory
+
+    if folder[-1] != "/":
+        folder += "/"
+
     print(f"Automatic: {automatic}")
     print(f"Time delta: {time_delta}")
     print(f"Folder: {folder}")
